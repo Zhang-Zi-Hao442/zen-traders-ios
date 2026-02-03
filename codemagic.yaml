@@ -7,12 +7,12 @@ workflows:
       app_store_connect: Zen Traders
     environment:
       ios_signing:
-        distribution_type: app_store
+        distribution_type: development
         bundle_identifier: app.ioscerts5839.test
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
-      node: 18
+      node: 22
     scripts:
       - name: Install dependencies
         script: |
