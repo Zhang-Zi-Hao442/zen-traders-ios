@@ -10,8 +10,8 @@ workflows:
         distribution_type: app_store
         bundle_identifier: app.ioscerts5839.test
       vars:
-        XCODE_PROJECT: "ios/App/App.xcodeproj"
-        XCODE_SCHEME: "App"
+        BUNDLE_ID: "app.ioscerts5839.test"
+        TEAM_ID: "U9M59BM29U"
       node: 22
     scripts:
       - name: Install dependencies
@@ -23,6 +23,13 @@ workflows:
       - name: Set up code signing settings on Xcode project
         script: |
           xcode-project use-profiles --project "ios/App/App.xcodeproj"
+      - name: Update Xcode project signing
+        script: |
+          cd ios/App
+          # Update project.pbxproj with correct signing settings
+          sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "U9M59BM29U";/g' App.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj
+          sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = .*;/PRODUCT_BUNDLE_IDENTIFIER = "app.ioscerts5839.test";/g' App.xcodeproj/project.pbxproj
       - name: Build ipa for distribution
         script: |
           xcode-project build-ipa \
