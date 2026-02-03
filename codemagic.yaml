@@ -8,7 +8,7 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.zentraders.app
+        bundle_identifier: xyz.zentraders.mobile
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
