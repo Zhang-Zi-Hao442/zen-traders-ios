@@ -7,7 +7,7 @@ workflows:
       app_store_connect: Zen Traders
     environment:
       ios_signing:
-        distribution_type: development
+        distribution_type: app_store
         bundle_identifier: app.ioscerts5839.test
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
