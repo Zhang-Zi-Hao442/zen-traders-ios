@@ -1,0 +1,36 @@
+{
+  "name": "zen-traders-voice-orders",
+  "version": "1.0.0",
+  "description": "Voice Controlled Order Execution System for Zen Traders",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js",
+    "client": "cd client && npm start",
+    "build": "cd client && npm run build"
+  },
+  "keywords": [
+    "trading",
+    "voice",
+    "alpaca",
+    "elevenlab"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@alpacahq/alpaca-trade-api": "^3.0.3",
+    "@elevenlabs/client": "^0.13.1",
+    "axios": "^1.6.2",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "form-data": "^4.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
