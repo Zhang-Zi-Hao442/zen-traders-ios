@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zen Traders - Voice Order</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#06b6d4">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Zen Traders">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/public/icon.svg">
+    
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        gray: {
+                            850: '#1f2937',
+                            900: '#111827',
+                            950: '#030712', 
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Roboto Mono', 'monospace'],
+                    },
+                    animation: {
+                        'slide-up': 'slideUp 0.3s ease-out',
+                        'slide-down': 'slideDown 0.3s ease-out',
+                        'fade-in': 'fadeIn 0.2s ease-out',
+                    },
+                    keyframes: {
+                        slideUp: {
+                            '0%': { transform: 'translateY(100%)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        slideDown: {
+                            '0%': { transform: 'translateY(-100%)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { 
+            background-color: #1a1a1a; 
+            -webkit-tap-highlight-color: transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        /* 手机容器 */
+        #root {
+            width: 100%;
+            max-width: 390px;
+            height: 844px;
+            max-height: 90vh;
+            background-color: #000;
+            border-radius: 40px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8),
+                        0 0 0 1px rgba(255, 255, 255, 0.1);
+        }
+        
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        
+        /* 录音动画 */
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+        .pulse-animation {
+            animation: pulse 1s ease-in-out infinite;
+        }
+        
+        @keyframes recording {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .recording-animation {
+            animation: recording 1s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- Icons ---
+        const Icons = {
+            Bell: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>,
+            Activity: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
+            ClipboardList: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>,
+            Mic: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="black" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>,
+            Zap: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+            TrendingUp: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
+            ShieldCheck: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>,
+            // 修复版 X 图标：本质是一个加号旋转45度，绝对垂直对称，不再歪斜
+            X: ({ className }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                    <path d="M12 5v14M5 12h14" transform="rotate(45 12 12)" />
+                </svg>
+            ),
+            Check: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+            Loader: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        };
+
+        // --- Initial Data ---
+        const initialOrders = [
+            {
+                id: 1,
+                symbol: 'BTC-PERP',
+                type: 'Limit Buy',
+                typeColor: 'bg-gray-800 text-gray-400',
+                time: '2 mins ago',
+                status: 'Pending',
+                statusColor: 'text-yellow-500 bg-yellow-500/10 border-yellow-600/50',
+                size: '0.5',
+                sizeUnit: 'BTC',
+                targetPrice: '$42,800'
+            },
+            {
+                id: 2,
+                symbol: 'ETH-PERP',
+                type: 'Take Profit',
+                typeColor: 'bg-gray-800 text-gray-400',
+                time: '15 mins ago',
+                status: 'Active',
+                statusColor: 'text-green-500 bg-green-500/10 border-green-600/50',
+                size: '10',
+                sizeUnit: 'ETH',
+                targetPrice: '$2,450'
+            }
+        ];
+
+        // API配置 - 自动检测当前主机
+        const currentHost = window.location.hostname;
+        const currentPort = window.location.port || '3001';
+        const API_BASE_URL = `http://${currentHost}:${currentPort}/api`;
+        const WS_URL = `ws://${currentHost}:${currentPort}`;
+
+        // --- Main Component ---
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('monitoring');
+            const [orders, setOrders] = useState(initialOrders);
+            const [positions, setPositions] = useState([]);
+            const [voiceState, setVoiceState] = useState('idle'); // idle, listening, processing, verifying, confirming, executing
+            const [showToast, setShowToast] = useState(false);
+            const [transcript, setTranscript] = useState('');
+            const [intent, setIntent] = useState(null);
+            const [validation, setValidation] = useState(null);
+            const [error, setError] = useState(null);
+            const [leveragedPositions, setLeveragedPositions] = useState([]);
+            
+            const mediaRecorderRef = useRef(null);
+            const audioChunksRef = useRef([]);
+            const wsRef = useRef(null);
+            const confirmationTimerRef = useRef(null);
+
+            // 初始化WebSocket连接
+            useEffect(() => {
+                connectWebSocket();
+                loadPositions();
+                loadLeveragedPositions();
+                loadOrders();
+                return () => {
+                    if (wsRef.current) {
+                        wsRef.current.close();
+                    }
+                    if (confirmationTimerRef.current) {
+                        clearTimeout(confirmationTimerRef.current);
+                    }
+                };
+            }, []);
+
+            // 连接WebSocket
+            const connectWebSocket = () => {
+                try {
+                    const ws = new WebSocket(WS_URL);
+                    
+                    ws.onopen = () => {
+                        console.log('WebSocket connected');
+                        setError(null);
+                    };
+                    
+                    ws.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        handleWebSocketMessage(data);
+                    };
+                    
+                    ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        setError('连接错误，请检查服务器');
+                    };
+                    
+                    ws.onclose = () => {
+                        console.log('WebSocket closed');
+                        // 尝试重连
+                        setTimeout(connectWebSocket, 3000);
+                    };
+                    
+                    wsRef.current = ws;
+                } catch (error) {
+                    console.error('Failed to connect WebSocket:', error);
+                    setError('无法连接到服务器');
+                }
+            };
+
+            // 处理WebSocket消息
+            const handleWebSocketMessage = (data) => {
+                switch (data.type) {
+                    case 'status':
+                        setVoiceState(data.state);
+                        break;
+                    case 'transcript':
+                        setTranscript(data.transcript);
+                        break;
+                    case 'intent':
+                        setIntent(data.intent);
+                        break;
+                    case 'validation':
+                        setValidation(data.validation);
+                        setIntent(data.intent);
+                        if (data.validation.isValid) {
+                            setVoiceState('confirming');
+                            startConfirmationTimer();
+                        } else {
+                            setVoiceState('idle');
+                            setError(data.validation.errors.join(', '));
+                        }
+                        break;
+                    case 'order_executed':
+                        handleOrderExecuted(data.order, data.intent);
+                        break;
+                    case 'error':
+                        setError(data.error);
+                        setVoiceState('idle');
+                        break;
+                }
+            };
+
+            // 加载持仓
+            const loadPositions = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/positions`);
+                    const result = await response.json();
+                    if (result.success) {
+                        setPositions(result.positions);
+                    }
+                } catch (error) {
+                    console.error('Load positions error:', error);
+                }
+            };
+
+            // 加载杠杆仓位
+            const loadLeveragedPositions = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/positions/leveraged`);
+                    const result = await response.json();
+                    if (result.success) {
+                        setLeveragedPositions(result.positions);
+                    }
+                } catch (error) {
+                    console.error('Load leveraged positions error:', error);
+                }
+            };
+
+            // 从本地存储加载订单历史
+            const loadLocalOrders = () => {
+                try {
+                    const stored = localStorage.getItem('zen_traders_orders');
+                    return stored ? JSON.parse(stored) : [];
+                } catch (e) {
+                    return [];
+                }
+            };
+
+            // 保存订单到本地存储
+            const saveLocalOrder = (order) => {
+                try {
+                    const stored = loadLocalOrders();
+                    // 避免重复
+                    const exists = stored.find(o => o.id === order.id);
+                    if (!exists) {
+                        stored.unshift(order); // 新订单放最前面
+                        // 只保留最近 50 条
+                        if (stored.length > 50) stored.pop();
+                        localStorage.setItem('zen_traders_orders', JSON.stringify(stored));
+                    }
+                } catch (e) {
+                    console.error('Save local order error:', e);
+                }
+            };
+
+            // 加载订单
+            const loadOrders = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/orders`);
+                    const result = await response.json();
+                    
+                    // 获取本地存储的订单
+                    const localOrders = loadLocalOrders();
+                    
+                    if (result.success && result.orders && result.orders.length > 0) {
+                        const formattedOrders = result.orders.map(order => ({
+                            id: order.id,
+                            symbol: order.symbol,
+                            type: `${order.side === 'buy' ? 'Buy' : 'Sell'} ${order.type === 'market' ? 'Market' : 'Limit'}`,
+                            typeColor: 'bg-gray-800 text-gray-400',
+                            time: formatTime(order.created_at),
+                            status: order.status,
+                            statusColor: getStatusColor(order.status),
+                            size: order.qty,
+                            sizeUnit: order.symbol,
+                            targetPrice: order.limit_price ? `$${order.limit_price}` : 'Market'
+                        }));
+                        setOrders(formattedOrders);
+                    } else if (localOrders.length > 0) {
+                        // 如果 API 没有返回订单，使用本地存储的订单
+                        setOrders(localOrders);
+                    }
+                } catch (error) {
+                    console.error('Load orders error:', error);
+                    // 出错时使用本地存储的订单
+                    const localOrders = loadLocalOrders();
+                    if (localOrders.length > 0) {
+                        setOrders(localOrders);
+                    }
+                }
+            };
+
+            // 格式化时间
+            const formatTime = (dateString) => {
+                if (!dateString) return 'Just now';
+                const date = new Date(dateString);
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / 60000);
+                if (diffMins < 1) return 'Just now';
+                if (diffMins < 60) return `${diffMins} mins ago`;
+                const diffHours = Math.floor(diffMins / 60);
+                return `${diffHours} hours ago`;
+            };
+
+            // 获取状态颜色
+            const getStatusColor = (status) => {
+                const colors = {
+                    'new': 'text-yellow-500 bg-yellow-500/10 border-yellow-600/50',
+                    'pending_new': 'text-yellow-500 bg-yellow-500/10 border-yellow-600/50',
+                    'accepted': 'text-blue-500 bg-blue-500/10 border-blue-600/50',
+                    'pending_cancel': 'text-orange-500 bg-orange-500/10 border-orange-600/50',
+                    'canceled': 'text-gray-500 bg-gray-500/10 border-gray-600/50',
+                    'filled': 'text-green-500 bg-green-500/10 border-green-600/50',
+                    'partially_filled': 'text-cyan-500 bg-cyan-500/10 border-cyan-600/50',
+                    'rejected': 'text-red-500 bg-red-500/10 border-red-600/50',
+                    'expired': 'text-gray-500 bg-gray-500/10 border-gray-600/50'
+                };
+                return colors[status] || 'text-gray-500 bg-gray-500/10 border-gray-600/50';
+            };
+
+            // Elevenlab 语音相关引用
+            const elevenlabWsRef = React.useRef(null);
+            // mediaRecorderRef 已在上面声明
+            const audioContextRef = React.useRef(null);
+            const streamRef = React.useRef(null);
+            const isListeningRef = React.useRef(false);
+            const currentTranscriptRef = React.useRef('');
+            const [elevenlabStatus, setElevenlabStatus] = React.useState('checking');
+            
+            // 同步 transcript 到 ref
+            React.useEffect(() => {
+                currentTranscriptRef.current = transcript;
+            }, [transcript]);
+
+            // 检查 Elevenlab 配置状态
+            React.useEffect(() => {
+                fetch(`${API_BASE_URL}/elevenlabs/status`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.agentIdConfigured) {
+                            setElevenlabStatus('ready');
+                            console.log('Elevenlab Agent ready:', data.agentId);
+                        } else {
+                            setElevenlabStatus('not_configured');
+                            console.log('Elevenlab Agent not configured');
+                        }
+                    })
+                    .catch(err => {
+                        setElevenlabStatus('error');
+                        console.error('Elevenlab status check failed:', err);
+                    });
+            }, []);
+
+            // 开始语音录制 - 优先使用浏览器 Web Speech API
+            const startRecording = async () => {
+                try {
+                    console.log('🚀🚀🚀 Starting voice recording 🚀🚀🚀');
+                    setError(null);
+                    setTranscript('');
+                    setIntent(null);
+                    setValidation(null);
+                    isListeningRef.current = true;
+                    
+                    // 请求麦克风权限
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            sampleRate: 16000
+                        } 
+                    });
+                    streamRef.current = stream;
+                    console.log('Microphone access granted');
+                    
+                    // 检查是否支持 Web Speech API（在 localhost 或 HTTPS 下）
+                    // 注意：Capacitor/Cordova 打包的 iOS App 中 WKWebView 不支持 Web Speech API
+                    const isCapacitor = window.Capacitor !== undefined || window.location.protocol === 'capacitor:' || window.location.protocol === 'ionic:';
+                    const isSecure = window.location.protocol === 'https:' || 
+                                     window.location.hostname === 'localhost' ||
+                                     window.location.hostname === '127.0.0.1';
+                    const hasWebSpeech = !isCapacitor && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+                    
+                    console.log('🔍🔍🔍 Environment check:', { isCapacitor, isSecure, hasWebSpeech, protocol: window.location.protocol });
+                    
+                    // 在 Capacitor 环境中，优先使用 Elevenlab（因为 WKWebView 不支持 Web Speech API）
+                    if (isCapacitor && elevenlabStatus === 'ready') {
+                        console.log('📱 Capacitor 环境，使用 Elevenlab Agent');
+                        setTranscript('🔗 连接 Elevenlab...');
+                        await startElevenlabRecording(stream);
+                        return;
+                    }
+                    
+                    // 优先使用 Web Speech API（免费、快速）
+                    if (isSecure && hasWebSpeech) {
+                        console.log('✅✅✅ Using Web Speech API');
+                        await startWebSpeechRecording(stream);
+                        return;
+                    } else {
+                        console.log('❌❌❌ Web Speech API 不可用:', { isSecure, hasWebSpeech });
+                    }
+                    
+                    // 如果 Web Speech API 不可用，尝试 Elevenlab
+                    if (elevenlabStatus === 'ready') {
+                        console.log('Web Speech not available, trying Elevenlab');
+                        setTranscript('🔗 连接 Elevenlab...');
+                        await startElevenlabRecording(stream);
+                    } else {
+                        // 都不可用 - 在 iOS 上显示更友好的提示
+                        const isCapacitor = window.Capacitor !== undefined || window.location.protocol === 'capacitor:';
+                        if (isCapacitor) {
+                            setError('语音服务未配置，请确保 Elevenlab Agent 已正确设置');
+                        } else {
+                            setError('语音功能不可用：请使用 localhost 或 HTTPS 访问，或配置 Elevenlab Agent');
+                        }
+                        setVoiceState('idle');
+                        stream.getTracks().forEach(t => t.stop());
+                    }
+                    
+                    // 触觉反馈
+                    try {
+                        if (navigator.vibrate) navigator.vibrate([100]);
+                    } catch (e) {}
+                    
+                } catch (error) {
+                    console.error('Recording error:', error);
+                    setError('语音启动失败: ' + error.message);
+                    setVoiceState('idle');
+                    isListeningRef.current = false;
+                }
+            };
+            
+            // 处理 Elevenlab 消息
+            const handleElevenlabMessage = (data) => {
+                console.log('Elevenlab message:', data.type);
+                
+                switch (data.type) {
+                    case 'user_transcript':
+                        // 用户说话的文字
+                        setTranscript(data.text || data.user_transcript || '');
+                        break;
+                    case 'agent_response':
+                        // Agent 回复 - 可能包含交易意图
+                        console.log('Agent response:', data);
+                        if (data.text) {
+                            // 解析 agent 回复中的交易命令
+                            parseAgentResponse(data.text);
+                        }
+                        break;
+                    case 'audio':
+                        // 播放 agent 的语音回复
+                        if (data.audio) {
+                            playAudio(data.audio);
+                        }
+                        break;
+                }
+            };
+            
+            // 解析 Agent 回复
+            const parseAgentResponse = (text) => {
+                console.log('Parsing agent response:', text);
+                // 发送到服务器进行意图解析
+                sendTranscriptToServer(text);
+            };
+            
+            // 开始音频流
+            const startAudioStream = (stream, ws) => {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: 16000
+                });
+                audioContextRef.current = audioContext;
+                
+                const source = audioContext.createMediaStreamSource(stream);
+                const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                
+                processor.onaudioprocess = (event) => {
+                    if (ws.readyState === WebSocket.OPEN && isListeningRef.current) {
+                        const inputData = event.inputBuffer.getChannelData(0);
+                        // 转换为 16-bit PCM
+                        const pcmData = new Int16Array(inputData.length);
+                        for (let i = 0; i < inputData.length; i++) {
+                            pcmData[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
+                        }
+                        // 发送音频数据
+                        ws.send(JSON.stringify({
+                            type: 'audio',
+                            audio: btoa(String.fromCharCode.apply(null, new Uint8Array(pcmData.buffer)))
+                        }));
+                    }
+                };
+                
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+            };
+            
+            // 播放音频
+            const playAudio = async (base64Audio) => {
+                try {
+                    const audioData = atob(base64Audio);
+                    const arrayBuffer = new ArrayBuffer(audioData.length);
+                    const view = new Uint8Array(arrayBuffer);
+                    for (let i = 0; i < audioData.length; i++) {
+                        view[i] = audioData.charCodeAt(i);
+                    }
+                    
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    const source = audioContext.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(audioContext.destination);
+                    source.start();
+                } catch (e) {
+                    console.error('Audio playback error:', e);
+                }
+            };
+            
+            // Elevenlab Agent 语音识别（支持 iOS WKWebView）
+            const startElevenlabRecording = async (stream) => {
+                console.log('📍📍📍 进入 startElevenlabRecording 函数');
+                try {
+                    const urlRes = await fetch(`${API_BASE_URL}/elevenlabs/signed-url`);
+                    const urlData = await urlRes.json();
+                    
+                    if (!urlData.signed_url) {
+                        throw new Error(urlData.message || 'Failed to get signed URL');
+                    }
+                    
+                    const ws = new WebSocket(urlData.signed_url);
+                    elevenlabWsRef.current = ws;
+                    
+                    ws.onopen = () => {
+                        console.log('Elevenlab connected');
+                        setTranscript('🎤 正在听...');
+                        setVoiceState('listening');
+                        startAudioStream(stream, ws);
+                    };
+                    
+                    ws.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        handleElevenlabMessage(data);
+                    };
+                    
+                    ws.onerror = (error) => {
+                        console.error('Elevenlab error:', error);
+                        setError('语音服务连接失败');
+                        setVoiceState('idle');
+                        stream.getTracks().forEach(t => t.stop());
+                    };
+                    
+                    ws.onclose = () => console.log('Elevenlab disconnected');
+                    setVoiceState('listening');
+                } catch (error) {
+                    console.error('Elevenlab 启动失败:', error);
+                    setError('语音服务连接失败: ' + error.message);
+                    setVoiceState('idle');
+                    stream.getTracks().forEach(t => t.stop());
+                }
+            };
+
+            // Web Speech API 备用方案
+            const startWebSpeechRecording = async (stream) => {
+                console.log('📍📍📍 进入 startWebSpeechRecording 函数');
+                
+                const isSecure = window.location.protocol === 'https:' || 
+                                 window.location.hostname === 'localhost' ||
+                                 window.location.hostname === '127.0.0.1';
+                const hasAPI = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+                
+                console.log('🔍 Web Speech API 检查:', { isSecure, hasAPI, protocol: window.location.protocol, hostname: window.location.hostname });
+                
+                if (isSecure && hasAPI) {
+                    try {
+                        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                        const recognition = new SpeechRecognition();
+                        recognition.continuous = true;
+                        recognition.interimResults = true;
+                        recognition.lang = 'zh-CN'; // 中文识别
+                        
+                        recognition.onstart = () => {
+                            console.log('🎤 语音识别已启动');
+                        };
+                        
+                        recognition.onresult = (event) => {
+                            let fullTranscript = '';
+                            for (let i = 0; i < event.results.length; i++) {
+                                fullTranscript += event.results[i][0].transcript;
+                            }
+                            console.log('✅ 识别到:', fullTranscript);
+                            setTranscript(fullTranscript);
+                        };
+                        
+                        recognition.onerror = (event) => {
+                            console.error('❌ 语音识别错误:', event.error);
+                            if (event.error === 'not-allowed') {
+                                setError('麦克风权限被拒绝，请在浏览器设置中允许');
+                            } else if (event.error === 'no-speech') {
+                                // 静音，不显示错误
+                            } else if (event.error !== 'aborted') {
+                                setError(`语音识别错误: ${event.error}`);
+                            }
+                        };
+                        
+                        recognition.onend = () => {
+                            console.log('🔚 语音识别结束');
+                        };
+                        
+                        recognition.onspeechstart = () => {
+                            console.log('🗣️ 检测到语音');
+                            setTranscript('🗣️ 检测到语音...');
+                        };
+                        
+                        recognition.start();
+                        console.log('📢 调用 recognition.start()');
+                        mediaRecorderRef.current = { recognition, stream };
+                        setVoiceState('listening');
+                        setTranscript('🎤 正在听...请说话');
+                    } catch (e) {
+                        console.error('启动语音识别失败:', e);
+                        setError('语音识别启动失败: ' + e.message);
+                        setVoiceState('idle');
+                        stream.getTracks().forEach(t => t.stop());
+                    }
+                } else {
+                    // 显示详细的错误信息
+                    let errorMsg = '语音功能不可用：\n';
+                    if (!hasAPI) {
+                        errorMsg += '- 浏览器不支持 Web Speech API\n';
+                    }
+                    if (!isSecure) {
+                        errorMsg += `- 当前访问方式 (${window.location.hostname}) 不支持语音\n`;
+                        errorMsg += '- 请使用 localhost 或 HTTPS 访问\n';
+                        errorMsg += '- 或者配置 Elevenlab Agent';
+                    }
+                    setError(errorMsg);
+                    setVoiceState('idle');
+                    stream.getTracks().forEach(t => t.stop());
+                }
+            };
+
+            // 停止录音
+            const stopRecording = async () => {
+                console.log('=== Stopping recording ===');
+                console.log('Current transcript:', transcript);
+                console.log('Current transcript ref:', currentTranscriptRef.current);
+                
+                isListeningRef.current = false;
+                
+                // 关闭 Elevenlab WebSocket
+                if (elevenlabWsRef.current) {
+                    elevenlabWsRef.current.close();
+                    elevenlabWsRef.current = null;
+                }
+                
+                // 关闭音频上下文
+                if (audioContextRef.current) {
+                    audioContextRef.current.close();
+                    audioContextRef.current = null;
+                }
+                
+                // 停止音频流
+                if (streamRef.current) {
+                    streamRef.current.getTracks().forEach(track => track.stop());
+                    streamRef.current = null;
+                }
+                
+                setVoiceState('processing');
+                
+                // 触觉反馈
+                try {
+                    if (navigator.vibrate) {
+                        navigator.vibrate([50, 50, 50]);
+                    }
+                } catch (e) {}
+                
+                // 处理 Web Speech API - 先等待一下让最后的结果回来
+                setTimeout(() => {
+                    // 停止语音识别
+                    if (mediaRecorderRef.current?.recognition) {
+                        try {
+                            mediaRecorderRef.current.recognition.stop();
+                        } catch (e) {}
+                        if (mediaRecorderRef.current.stream) {
+                            mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
+                        }
+                    }
+                    
+                    // 再等一下处理最终结果
+                    setTimeout(() => {
+                        const finalText = currentTranscriptRef.current;
+                        console.log('Processing final text:', finalText);
+                        
+                        // 过滤掉状态文字，只发送真正的语音内容
+                        const isStatusText = finalText && (
+                            finalText.includes('🎤') || 
+                            finalText.includes('🔗') || 
+                            finalText.includes('🎵') ||
+                            finalText.includes('正在听') ||
+                            finalText.includes('连接')
+                        );
+                        
+                        if (finalText && !isStatusText && finalText.trim().length > 0) {
+                            console.log('Sending transcript to server:', finalText.trim());
+                            mediaRecorderRef.current = null;
+                            sendTranscriptToServer(finalText.trim());
+                        } else {
+                            console.log('No valid transcript, resetting state');
+                            setError('未识别到语音内容，请按住按钮说话后再松开');
+                            setVoiceState('idle');
+                            setTranscript('');
+                            mediaRecorderRef.current = null;
+                        }
+                    }, 300);
+                }, 200); // 先等 200ms 让语音识别完成
+            };
+
+            // 发送转录文本到服务器进行意图解析
+            const sendTranscriptToServer = async (text) => {
+                try {
+                    console.log('Sending transcript for NLU:', text);
+                    
+                    // 通过WebSocket发送（更实时）
+                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(JSON.stringify({
+                            type: 'process_text',
+                            text: text
+                        }));
+                    } else {
+                        // 备选方案：通过HTTP POST
+                        const response = await fetch(`${API_BASE_URL}/voice/parse`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: text })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            setTranscript(text);
+                            setIntent(result.intent);
+                            setValidation(result.validation);
+                            
+                            if (result.validation.isValid) {
+                                setVoiceState('confirming');
+                                startConfirmationTimer();
+                            } else {
+                                setVoiceState('idle');
+                                setError(result.validation.errors.join(', '));
+                            }
+                        } else {
+                            setError(result.error || '解析失败');
+                            setVoiceState('idle');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Parse error:', error);
+                    setError('解析失败: ' + error.message);
+                    setVoiceState('idle');
+                }
+            };
+
+            // 开始确认倒计时
+            const startConfirmationTimer = () => {
+                if (confirmationTimerRef.current) {
+                    clearTimeout(confirmationTimerRef.current);
+                }
+                
+                confirmationTimerRef.current = setTimeout(() => {
+                    handleCancel();
+                }, 10000); // 10秒后自动取消
+            };
+
+            // 确认订单
+            const handleExecute = async () => {
+                try {
+                    setVoiceState('executing');
+                    
+                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(JSON.stringify({
+                            type: 'confirm_order',
+                            intent: intent
+                        }));
+                    } else {
+                        // HTTP备选方案
+                        const response = await fetch(`${API_BASE_URL}/orders/execute`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                intent: intent,
+                                confirmation: 'confirmed'
+                            })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            handleOrderExecuted(result.order, intent);
+                        } else {
+                            setError(result.error || '执行失败');
+                            setVoiceState('confirming');
+                        }
+                    }
+                    
+                    if (confirmationTimerRef.current) {
+                        clearTimeout(confirmationTimerRef.current);
+                    }
+                    
+                    // 触觉反馈
+                    if (navigator.vibrate) {
+                        navigator.vibrate([200, 100, 200]);
+                    }
+                    
+                } catch (error) {
+                    console.error('Confirm error:', error);
+                    setError('确认失败');
+                    setVoiceState('confirming');
+                }
+            };
+
+            // 取消订单
+            const handleCancel = () => {
+                setVoiceState('idle');
+                setTranscript('');
+                setIntent(null);
+                setValidation(null);
+                setError(null);
+                
+                if (confirmationTimerRef.current) {
+                    clearTimeout(confirmationTimerRef.current);
+                }
+                
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({ type: 'cancel_order' }));
+                }
+            };
+
+            // 处理订单执行成功
+            const handleOrderExecuted = (order, orderIntent) => {
+                const newOrder = {
+                    id: order.id || 'order-' + Date.now(),
+                    symbol: order.symbol || orderIntent.symbol,
+                    type: `${orderIntent.side === 'buy' ? 'Buy' : 'Sell'} ${orderIntent.type === 'market' ? 'Market' : 'Limit'}`,
+                    typeColor: 'bg-gray-800 text-gray-400',
+                    time: 'Just now',
+                    status: order.status || 'filled',
+                    statusColor: getStatusColor(order.status || 'filled'),
+                    size: order.qty || orderIntent.quantity,
+                    sizeUnit: order.symbol || orderIntent.symbol,
+                    targetPrice: order.limit_price ? `$${order.limit_price}` : 'Market',
+                    created_at: new Date().toISOString()
+                };
+
+                // 保存到本地存储
+                saveLocalOrder(newOrder);
+                
+                // 更新订单列表（新订单放在最前面）
+                setOrders(prevOrders => [newOrder, ...prevOrders.filter(o => o.id !== newOrder.id)]);
+                setVoiceState('idle');
+                setTranscript('');
+                setIntent(null);
+                setValidation(null);
+                setActiveTab('orders');
+                
+                // Show Toast
+                setShowToast(true);
+                setTimeout(() => setShowToast(false), 3000);
+                
+                // 延迟重新加载持仓（订单成交需要一点时间）
+                setTimeout(() => {
+                    loadPositions();
+                }, 1000);
+            };
+
+            // 语音订单点击处理（Push-to-Talk）
+            const handleVoiceOrderClick = () => {
+                if (voiceState === 'idle') {
+                    startRecording();
+                } else if (voiceState === 'listening') {
+                    stopRecording();
+                }
+            };
+
+            return (
+                <div className="relative h-full bg-black text-white font-sans selection:bg-cyan-500 selection:text-black pb-52 overflow-y-auto overflow-x-hidden">
+                    
+                    {/* Toast Notification */}
+                    {showToast && (
+                        <div className="absolute top-4 left-4 right-4 z-50 animate-slide-down">
+                            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-2xl flex items-start gap-3">
+                                <div className="bg-gray-800 p-2 rounded-lg">
+                                    <Icons.Bell />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-sm">Order Executed</h4>
+                                    <p className="text-gray-400 text-xs mt-1">Market Buy for SOL-PERP has been sent.</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Header */}
+                    <header className="p-6 flex justify-between items-start pt-8">
+                        <div>
+                            <h1 className="text-3xl font-bold tracking-tight">Agent Panel</h1>
+                            <p className="text-gray-500 text-sm mt-1">Portfolio Monitoring & Execution</p>
+                        </div>
+                        <button className="p-2 rounded-full bg-gray-900 hover:bg-gray-800 transition-colors relative">
+                            <div className="text-gray-300"><Icons.Bell /></div>
+                            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-gray-900"></span>
+                        </button>
+                    </header>
+
+                    {/* Tab Switcher */}
+                    <div className="px-4 mb-6">
+                        <div className="bg-gray-900 rounded-full p-1 flex">
+                            <button
+                                onClick={() => setActiveTab('monitoring')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-sm font-medium transition-all ${
+                                    activeTab === 'monitoring'
+                                        ? 'bg-gray-800 text-white shadow-lg'
+                                        : 'text-gray-400 hover:text-gray-200'
+                                }`}
+                            >
+                                <Icons.Activity />
+                                Monitoring
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('orders')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-sm font-medium transition-all ${
+                                    activeTab === 'orders'
+                                        ? 'bg-gray-800 text-white shadow-lg'
+                                        : 'text-gray-400 hover:text-gray-200'
+                                }`}
+                            >
+                                <Icons.ClipboardList />
+                                Agent Orders
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Content Area */}
+                    <main className="px-4 space-y-6">
+                        {activeTab === 'monitoring' ? <MonitoringView positions={positions} onRefresh={loadPositions} /> : <OrdersView orders={orders} />}
+                    </main>
+
+                    {/* Interaction Layers */}
+                    
+                    {/* 错误提示 */}
+                    {error && (
+                        <div className="absolute top-4 left-4 right-4 z-50 animate-slide-down">
+                            <div className="bg-red-900/90 border border-red-700 rounded-xl p-4 shadow-2xl">
+                                <p className="text-sm text-white">{error}</p>
+                                <button 
+                                    onClick={() => setError(null)}
+                                    className="mt-2 text-xs text-red-300 underline"
+                                >
+                                    关闭
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 实时转录显示 */}
+                    {transcript && (
+                        <div className="absolute top-24 left-4 right-4 z-40 animate-slide-down">
+                            <div className="bg-gray-900/90 backdrop-blur-md border border-gray-800 rounded-2xl p-6 shadow-2xl">
+                                <p className="text-xs text-gray-500 mb-2">实时转录</p>
+                                <p className="text-white">{transcript}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 1. Listening Overlay (Top) */}
+                    {voiceState === 'listening' && !transcript && (
+                        <div className="absolute top-24 left-4 right-4 z-40 animate-slide-down">
+                            <div className="bg-gray-900/90 backdrop-blur-md border border-gray-800 rounded-2xl p-6 shadow-2xl">
+                                <p className="text-lg font-bold mb-1">正在聆听...</p>
+                                <p className="text-gray-400 text-sm">请清晰地说明您的订单</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 2. Processing/Verifying Bottom Bar */}
+                    {(voiceState === 'processing' || voiceState === 'verifying') && (
+                        <div className="absolute bottom-8 left-4 right-4 z-40 animate-slide-up">
+                            <div className="bg-gradient-to-r from-pink-600 to-rose-600 rounded-2xl p-4 py-5 flex items-center justify-center gap-3 shadow-lg shadow-pink-900/20">
+                                <Icons.Loader />
+                                <span className="font-bold text-lg">处理中...</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 3. Confirm Modal (Backdrop + Card) */}
+                    {voiceState === 'confirming' && intent && validation && (
+                        <div className="absolute inset-0 z-50 flex items-center justify-center px-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+                            <div className="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-3xl overflow-hidden shadow-2xl animate-slide-up relative">
+                                {/* Top-Right Close Button (Perfectly Aligned) */}
+                                <button 
+                                    onClick={handleCancel}
+                                    className="absolute top-5 right-5 text-gray-500 hover:text-white transition-colors p-1"
+                                >
+                                    <Icons.X className="w-5 h-5" />
+                                </button>
+
+                                {/* Modal Header */}
+                                <div className="p-6 pb-2">
+                                    <div className="flex items-center gap-2 text-emerald-400 mb-4">
+                                        <Icons.ShieldCheck />
+                                        <span className="font-bold text-lg text-white">确认订单</span>
+                                    </div>
+                                    
+                                    {/* Data Grid */}
+                                    <div className="grid grid-cols-2 gap-4 mb-6">
+                                        <div className="bg-gray-800/50 p-3 rounded-xl border border-gray-800">
+                                            <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">股票代码</p>
+                                            <p className="font-bold text-cyan-400">{intent.symbol}</p>
+                                        </div>
+                                        <div className="bg-gray-800/50 p-3 rounded-xl border border-gray-800">
+                                            <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">类型</p>
+                                            <p className="font-bold">{intent.side === 'buy' ? '买入' : '卖出'} {intent.type === 'market' ? '市价' : '限价'}</p>
+                                        </div>
+                                        <div className="bg-gray-800/50 p-3 rounded-xl border border-gray-800">
+                                            <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">数量</p>
+                                            <p className="font-bold">{intent.quantity}</p>
+                                        </div>
+                                        <div className="bg-gray-800/50 p-3 rounded-xl border border-gray-800">
+                                            <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">价格</p>
+                                            <p className="font-bold text-white">
+                                                {intent.limitPrice ? `$${intent.limitPrice}` : '市价'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* 警告信息 */}
+                                    {validation.warnings && validation.warnings.length > 0 && (
+                                        <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-800 rounded-xl">
+                                            {validation.warnings.map((warning, idx) => (
+                                                <p key={idx} className="text-xs text-yellow-400">{warning}</p>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Quote */}
+                                    {transcript && (
+                                        <div className="mb-6">
+                                            <p className="text-gray-400 text-sm italic border-l-2 border-gray-700 pl-3">
+                                                "{transcript}"
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Actions */}
+                                    <div className="flex gap-3 mb-2">
+                                        <button 
+                                            onClick={handleCancel}
+                                            className="flex-1 py-4 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold flex items-center justify-center gap-2 transition-colors group"
+                                        >
+                                            <span className="flex items-center justify-center text-gray-400 group-hover:text-white transition-colors">
+                                                <Icons.X className="w-5 h-5 mr-1" />
+                                            </span> 
+                                            取消
+                                        </button>
+                                        <button 
+                                            onClick={handleExecute}
+                                            disabled={voiceState === 'executing'}
+                                            className="flex-1 py-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-cyan-500/20 disabled:opacity-50"
+                                        >
+                                            {voiceState === 'executing' ? (
+                                                <Icons.Loader />
+                                            ) : (
+                                                <>
+                                                    <span className="flex items-center"><Icons.Check /></span> 执行
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Floating Bottom - Voice Only */}
+                    <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[390px] px-4 pb-6 pt-4 z-30 bg-gradient-to-t from-black via-black/95 to-transparent">
+                        {/* 语音按钮 - 点击切换模式 */}
+                        <button 
+                            onClick={() => {
+                                console.log('🔘 按钮点击, 当前状态:', voiceState);
+                                if (voiceState === 'idle') {
+                                    startRecording();
+                                } else if (voiceState === 'listening') {
+                                    stopRecording();
+                                }
+                            }}
+                            className={`w-full font-bold py-5 rounded-3xl flex items-center justify-center gap-3 shadow-xl transition-all duration-300 ${
+                                voiceState === 'listening' 
+                                    ? 'bg-red-500 text-white pulse-animation' 
+                                    : voiceState !== 'idle' && voiceState !== 'listening'
+                                        ? 'opacity-50 pointer-events-none' 
+                                        : 'bg-white text-black active:scale-[0.98]'
+                            }`}
+                            disabled={voiceState !== 'idle' && voiceState !== 'listening'}
+                        >
+                            <Icons.Mic className={voiceState === 'listening' ? 'recording-animation' : ''} />
+                            <span className="text-lg">
+                                {voiceState === 'listening' ? '点击停止' : '语音下单'}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const MonitoringView = ({ positions, leveragedPositions, onRefresh }) => (
+            <div className="flex flex-col h-[calc(100vh-300px)]">
+                {/* Positions - Fixed height ~2/3 */}
+                <div className="flex-[2] min-h-0 mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-xs font-bold text-gray-500 tracking-wider uppercase flex items-center gap-2">
+                            Positions
+                            {positions && positions.length > 0 && (
+                                <span className="bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full text-[10px]">
+                                    {positions.length}
+                                </span>
+                            )}
+                        </h2>
+                        <button 
+                            onClick={onRefresh}
+                            className="text-xs text-cyan-400 hover:text-cyan-300"
+                        >
+                            Refresh
+                        </button>
+                    </div>
+                    
+                    <div className="h-[calc(100%-28px)] overflow-y-auto pr-1 rounded-2xl" style={{scrollbarWidth: 'thin'}}>
+                        {positions && positions.length > 0 ? (
+                            <div className="space-y-3">
+                                {positions.map((pos, idx) => {
+                                    const qty = parseFloat(pos.qty);
+                                    const unrealizedPl = parseFloat(pos.unrealized_pl);
+                                    const unrealizedPlpc = parseFloat(pos.unrealized_plpc);
+                                    return (
+                                        <div key={idx} className="bg-gray-900/60 border border-gray-800 rounded-2xl p-4">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-lg font-bold">{pos.symbol}</span>
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                                            qty > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                                                        }`}>
+                                                            {qty > 0 ? 'Long' : 'Short'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className={`text-lg font-bold ${unrealizedPl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                        {unrealizedPl >= 0 ? '+' : ''}${unrealizedPl.toFixed(2)}
+                                                    </span>
+                                                    <p className="text-xs text-gray-500">
+                                                        {Math.abs(qty)} shares
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between mt-3 pt-3 border-t border-gray-800/50 text-xs text-gray-500">
+                                                <span>Cost: ${parseFloat(pos.avg_entry_price).toFixed(2)}</span>
+                                                <span>Price: ${parseFloat(pos.current_price).toFixed(2)}</span>
+                                                <span className={unrealizedPlpc >= 0 ? 'text-green-500' : 'text-red-500'}>
+                                                    {(unrealizedPlpc * 100).toFixed(2)}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="bg-gray-900/40 border border-gray-800 rounded-2xl p-4 text-center h-full flex flex-col items-center justify-center">
+                                <p className="text-gray-500 text-sm">No positions</p>
+                                <p className="text-gray-600 text-xs mt-1">Your positions will appear here</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Agent Notifications - Horizontal Carousel */}
+                <div className="flex-1 min-h-0">
+                    <h2 className="text-xs font-bold text-gray-500 tracking-wider mb-3 uppercase">Agent Notifications</h2>
+                    <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory" style={{scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch'}}>
+                        <div className="bg-gray-900/40 rounded-xl p-4 flex items-center gap-3 border border-gray-800/50 min-w-[280px] flex-shrink-0 snap-start">
+                            <div className="text-pink-500"><Icons.Zap /></div>
+                            <span className="text-gray-300 text-sm">BTC-PERP leverage risk: <span className="text-gray-100 font-medium">High</span></span>
+                        </div>
+                        <div className="bg-gray-900/40 rounded-xl p-4 flex items-center gap-3 border border-gray-800/50 min-w-[280px] flex-shrink-0 snap-start">
+                            <div className="text-cyan-500"><Icons.TrendingUp /></div>
+                            <span className="text-gray-300 text-sm">SOL-PERP trend reversal</span>
+                        </div>
+                        <div className="bg-gray-900/40 rounded-xl p-4 flex items-center gap-3 border border-gray-800/50 min-w-[280px] flex-shrink-0 snap-start">
+                            <div className="text-yellow-500"><Icons.Activity /></div>
+                            <span className="text-gray-300 text-sm">ETH-PERP volatility spike</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const OrdersView = ({ orders }) => (
+            <div>
+                <h2 className="text-xs font-bold text-gray-500 tracking-wider mb-4 uppercase">Active Agent Orders</h2>
+                <div className="space-y-3">
+                    {orders.map(order => (
+                        <div key={order.id} className="bg-gray-900/60 border border-gray-800 rounded-2xl p-5 animate-slide-up">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-lg font-bold">{order.symbol}</span>
+                                        <span className={`${order.typeColor} text-[10px] font-bold px-2 py-0.5 rounded uppercase`}>{order.type}</span>
+                                    </div>
+                                    <span className="text-gray-500 text-xs">{order.time}</span>
+                                </div>
+                                <span className={`border text-xs font-medium px-3 py-1 rounded-full ${order.statusColor}`}>
+                                    {order.status}
+                                </span>
+                            </div>
+                            
+                            <div className="flex justify-between items-end border-t border-gray-800 pt-4">
+                                <div>
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Size</p>
+                                    <p className="text-sm font-medium text-gray-200">{order.size} <span className="text-gray-500">{order.sizeUnit}</span></p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Target Price</p>
+                                    <p className="text-sm font-medium text-white">{order.targetPrice}</p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('PWA: Service Worker registered');
+                    })
+                    .catch((error) => {
+                        console.log('PWA: Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>

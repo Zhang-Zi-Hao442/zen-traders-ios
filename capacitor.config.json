@@ -1,0 +1,11 @@
+{
+  "appId": "com.zentraders.app",
+  "appName": "Zen Traders",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "automatic"
+  },
+  "server": {
+    "hostname": "localhost"
+  }
+}

@@ -20,6 +20,9 @@
   "license": "MIT",
   "dependencies": {
     "@alpacahq/alpaca-trade-api": "^3.0.3",
+    "@capacitor/cli": "^8.0.2",
+    "@capacitor/core": "^8.0.2",
+    "@capacitor/ios": "^8.0.2",
     "@elevenlabs/client": "^0.13.1",
     "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
